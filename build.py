@@ -1,27 +1,51 @@
 import numpy as np
+import pdb
 
 class NeuralNetwork:
     def __init__(self, layers):
         # Initialize weights and biases with random values WHICH X= FIRST LAYER
-        self.weights = [np.random.randn(y, x) for x, y in zip(layers[:-1], layers[1:])]
-        self.biases = [np.random.randn(y, 1) for y in layers[1:]]
-
+        #self.weights = [np.random.randn(y, x) for x, y in zip(layers[:-1], layers[1:])]
+        #self.biases = [np.random.randn(y, 1) for y in layers[1:]]
+        self.weights = [np.random.randn(8, 8),np.random.randn(8, 8),np.random.randn(8, 8)]
+        self.biases = [np.random.randn(8),np.random.randn(8),np.random.randn(8)]
 ###############################################################################2forward
     def forward(self, p):
         # Propagate the input through the network
         for w, b in zip(self.weights[:-1], self.biases[:-1]):
             p = np.dot(w, p) + b  # apply dot product and bias addition
-
+            
+        p = np.dot(self.weights[-1], p) + self.biases[-1]
+        p = p.tolist()
+        
         # Apply the softmax function to the output of the final layer
         p = self.softmax(np.dot(self.weights[-1], p) + self.biases[-1])
-        #return p
-        return "*"
+        #print(p)
+        return self.get_operation(p)
+        #return "*"
 ####################################################################################
 
-    def softmax(self, z):
-        # Apply the softmax activation function
-        exp_z = np.exp(z)
-        return exp_z / np.sum(exp_z)
+    def softmax(self, p):
+        #p = p.tolist()
+        #print(p)
+
+        # Convert the list to a NumPy array
+        p = np.array(p)
+
+        # Initialize an array to store the updated values
+        updated_p = np.zeros(p.shape)
+
+        # Find the index of the maximum value in p
+        max_index = np.argmax(p)
+        # Set the value at the maximum index to 1
+        updated_p[max_index] = 1
+        # Convert the updated values back to a Python list
+        return updated_p.tolist()
+
+    def get_operation(self, lst):
+        operations = ['+', '-', 'sin', 'tan', 'cos', '*', '/', 'exp']
+        max_index = np.argmax(lst)
+        return operations[max_index]
+
 
     def train(self, predicted_y, sample_y, learning_rate):
         # Calculate the cost using mean squared error
@@ -68,7 +92,7 @@ class SymbolicFunctionLearning:
 
         self.last_expression = None
 
-        self.nn = NeuralNetwork([self.operations_length, 3, self.operations_length])  # initialize the neural network with 2 input neurons, 3 hidden neurons, and 1 output neuron
+        self.nn = NeuralNetwork([self.operations_length, 8, self.operations_length])  # initialize the neural network with 2 input neurons, 3 hidden neurons, and 1 output neuron
 
 
     def learn(self, dataset_x, dataset_y, tree_depth, learning_rate, training_steps):
@@ -216,4 +240,4 @@ dataset_y = [[8],
             [14]]
 #########################
 sfl = SymbolicFunctionLearning()
-sfl.learn(dataset_x, dataset_y, 2, 0.1, 5)
+sfl.learn(dataset_x, dataset_y, 1, 0.1, 5000)
