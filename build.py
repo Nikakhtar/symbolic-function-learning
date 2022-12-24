@@ -83,11 +83,11 @@ class SymbolicFunctionLearning:
             self.dataset_x = dataset_x
             self.dataset_y = dataset_y
 
-            self.num_variables = np.array(self.dataset_x).shape[0]
+            self.num_variables = np.array(self.dataset_x).shape[1]
 
             # Initialize a list to store the variable names
             self.variables = ['x' + str(i+1) for i in range(self.num_variables)]
-
+            #print(self.variables)
             # Store the depth of the tree
             self.tree_depth = tree_depth
 
@@ -106,7 +106,8 @@ class SymbolicFunctionLearning:
                     cost = self.nn.train(predicted_y, int(sample_y[0]), self.learning_rate)
                     print("cost : "+ str(cost))
 
-            print("y = "+self.decode_expression(self.last_expression))
+            #print("y = "+self.decode_expression(self.last_expression))
+            print(self.last_expression)
         else:
             print("datasets do not match. please try again.")
 
@@ -114,6 +115,7 @@ class SymbolicFunctionLearning:
         # Generate a mathematical expression tree with the given depth using the neural network
         if tree_depth == 0:
             # If the depth is zero, return a random variable or a constant value
+            #print(self.variables)
             return np.random.choice(self.variables)
         else:
             # If the depth is greater than zero, use the neural network to generate a random operation with two subexpressions
@@ -161,14 +163,11 @@ class SymbolicFunctionLearning:
         else:
             # If the expression is not a list, it is either a constant value or a variable.
             if expression in self.variables:
-                index = 0
                 # Return the corresponding input value
                 index = self.variables.index(expression)
-                #print("index : "+str(index))
-                #index = min(max(index, 0), len(input_values) - 1)
-                #return input_values[index]
-                return 4
-
+                
+                return input_values[index]
+"""
     def decode_expression(self, expression):
         # If the expression is a list, it represents a mathematical operation
         if isinstance(expression, list):
@@ -197,6 +196,7 @@ class SymbolicFunctionLearning:
         else:
             # If the expression is not a list, it is a constant value or a variable name
             return str(expression)
+"""
 #########################
 
 dataset_x = [[4, 4],
@@ -216,4 +216,4 @@ dataset_y = [[8],
             [14]]
 #########################
 sfl = SymbolicFunctionLearning()
-sfl.learn(dataset_x, dataset_y, 1, 0.1, 5)
+sfl.learn(dataset_x, dataset_y, 2, 0.1, 5)
