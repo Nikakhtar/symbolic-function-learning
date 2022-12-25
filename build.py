@@ -48,8 +48,6 @@ class NeuralNetwork:
 
 
     def train(self, predicted_y, sample_y, learning_rate):
-        # Calculate the cost using mean squared error
-        cost = np.sum((predicted_y - sample_y) ** 2) / 2
 
         # Backpropagate the error and update the weights and biases
         for w, b in reversed(list(zip(self.weights, self.biases))):
@@ -59,8 +57,6 @@ class NeuralNetwork:
             b_delta = predicted_y
             w -= learning_rate * w_delta
             b -= learning_rate * b_delta
-
-        return cost
 
     def softmax_prime(self, z):
         # Calculate the derivative of the softmax activation function
@@ -94,6 +90,8 @@ class SymbolicFunctionLearning:
 
         self.best_expression = None
 
+        self.best_cost = 100000000000000
+
         self.nn = NeuralNetwork([self.operations_length, 8, self.operations_length])  # initialize the neural network with 2 input neurons, 3 hidden neurons, and 1 output neuron
 
 
@@ -122,18 +120,27 @@ class SymbolicFunctionLearning:
 
             for sample_x, sample_y in zip(self.dataset_x, self.dataset_y):
                 # Here, you can access each individual data sample using the variables sample_x and sample_y
-                print(f"Sample x: {sample_x}")
-                print(f"Sample y: {sample_y}")
-
+                print("%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%")
+                print(f"                            Sample x: {sample_x}")
+                print(f"                            Sample y: {sample_y}")
+                print("%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%")
                 for i in range(self.training_steps):
                     self.last_expression = self.generate_expression(self.tree_depth, sample_x)
                     predicted_y = self.evaluate_expression(self.last_expression, sample_x)
 
-                    cost = self.nn.train(predicted_y, int(sample_y[0]), self.learning_rate)
+                    # Calculate the cost using mean squared error
+                    cost = np.sum((predicted_y - sample_y[0]) ** 2) / 2
+                    
+                    if(cost < self.best_cost):
+                        self.best_cost = cost
+                        self.best_expression = self.last_expression
+                        self.nn.train(predicted_y, int(sample_y[0]), self.learning_rate)
+                        
+                    print("--------------------------")
+                    print("y = "+decode_expression(self.last_expression))
                     print("cost : "+ str(cost))
-                    print(self.last_expression)
-
-            print("y = "+decode_expression(self.last_expression))
+                    print("---------------------------")
+            print("f(X): "+decode_expression(self.best_expression)+" with cost = "+str(self.best_cost))
             #print(self.last_expression)
         else:
             print("datasets do not match. please try again.")
@@ -242,5 +249,18 @@ dataset_y = [[8],
             [13],
             [14]]
 #########################
+dataset_x = []
+dataset_y = []
+
+x1 = np.random.randint(0, 10, size=500)
+x2 = np.random.randint(0, 10, size=500)
+
+# Calculate y using the equation y = exp(x1) + x2
+y = np.exp(x1) + x2
+
+# Create the dataset_x and dataset_y arrays
+dataset_x = np.column_stack((x1, x2))
+dataset_y = np.column_stack((y,))
+#########################
 sfl = SymbolicFunctionLearning()
-sfl.learn(dataset_x, dataset_y, 3, 0.1, 50)
+sfl.learn(dataset_x, dataset_y, 2, 0.1, 50)
