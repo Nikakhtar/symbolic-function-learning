@@ -42,7 +42,7 @@ class NeuralNetwork:
         return updated_p.tolist()
 
     def get_operation(self, lst):
-        operations = ['+', '-', 'sin', 'tan', 'cos', '*', '/', 'exp']
+        operations = ['+', '-', '*', '/', 'sin', 'cos', 'tan', 'exp']
         max_index = np.argmax(lst)
         return operations[max_index]
 
@@ -52,8 +52,8 @@ class NeuralNetwork:
         # Backpropagate the error and update the weights and biases
         for w, b in reversed(list(zip(self.weights, self.biases))):
             predicted_y = predicted_y - sample_y
-            #w_delta = np.dot(predicted_y, self.softmax_prime(np.dot(w, x) + b))
-            w_delta = 3
+            #w_delta = np.dot(predicted_y, self.softmax_prime(np.dot(w, sample_y) + b))
+            w_delta = np.random.randn()
             b_delta = predicted_y
             w -= learning_rate * w_delta
             b -= learning_rate * b_delta
@@ -90,7 +90,7 @@ class SymbolicFunctionLearning:
 
         self.best_expression = None
 
-        self.best_cost = 100000000000000
+        self.best_cost = None
 
         self.nn = NeuralNetwork([self.operations_length, 8, self.operations_length])  # initialize the neural network with 2 input neurons, 3 hidden neurons, and 1 output neuron
 
@@ -125,22 +125,33 @@ class SymbolicFunctionLearning:
                 print(f"                            Sample y: {sample_y}")
                 print("%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%")
                 for i in range(self.training_steps):
+                    
                     self.last_expression = self.generate_expression(self.tree_depth, sample_x)
-                    predicted_y = self.evaluate_expression(self.last_expression, sample_x)
 
+                    predicted_y = self.evaluate_expression(self.last_expression, sample_x)
+                    
                     # Calculate the cost using mean squared error
                     cost = np.sum((predicted_y - sample_y[0]) ** 2) / 2
                     
-                    if(cost < self.best_cost):
+                    if(self.best_expression == None):
+                        self.best_expression = self.last_expression
+                        self.best_cost = cost
+
+                    best_expression_predicted_y = self.evaluate_expression(self.best_expression, sample_x)
+                    
+                    self.nn.train(predicted_y, float(sample_y[0]), self.learning_rate)
+
+                    if((np.sum((predicted_y - sample_y[0]) ** 2) / 2)<(np.sum((best_expression_predicted_y - sample_y[0]) ** 2) / 2)):    
+                    #if(cost < self.best_cost):
                         self.best_cost = cost
                         self.best_expression = self.last_expression
-                        self.nn.train(predicted_y, int(sample_y[0]), self.learning_rate)
+                        #self.nn.train(predicted_y, int(sample_y[0]), self.learning_rate)
                         
                     print("--------------------------")
                     print("y = "+decode_expression(self.last_expression))
-                    print("cost : "+ str(cost))
+                    print("cost : "+ str((np.sum((predicted_y - sample_y[0]) ** 2) / 2)))
                     print("---------------------------")
-            print("f(X): "+decode_expression(self.best_expression)+" with cost = "+str(self.best_cost))
+                    print("best f(X): "+decode_expression(self.best_expression)+" with cost = "+str(self.best_cost))
             #print(self.last_expression)
         else:
             print("datasets do not match. please try again.")
@@ -232,7 +243,7 @@ def decode_expression(expression):
             # If the expression is not a list, it is a constant value or a variable name
             #print(expression)
             return str(expression)
-        
+"""      
 dataset_x = [[4, 4],
             [5, 4],
             [5, 5],
@@ -241,26 +252,31 @@ dataset_x = [[4, 4],
             [7, 6],
             [7, 7]]
 
-dataset_y = [[8],
-            [9],
-            [10],
-            [11],
-            [12],
-            [13],
-            [14]]
+dataset_y = [[16],
+            [20],
+            [25],
+            [30],
+            [36],
+            [42],
+            [49]]
+"""
 #########################
+
 dataset_x = []
 dataset_y = []
 
-x1 = np.random.randint(0, 10, size=500)
-x2 = np.random.randint(0, 10, size=500)
+x1 = np.random.randint(1, 10, size=50)
+x2 = np.random.randint(1, 10, size=50)
 
 # Calculate y using the equation y = exp(x1) + x2
-y = np.exp(x1) + x2
+#y = np.exp(x1) + x2
+y = np.cos(x1) * np.sin(x2)
 
 # Create the dataset_x and dataset_y arrays
 dataset_x = np.column_stack((x1, x2))
 dataset_y = np.column_stack((y,))
+
+#########################
 #########################
 sfl = SymbolicFunctionLearning()
-sfl.learn(dataset_x, dataset_y, 2, 0.1, 50)
+sfl.learn(dataset_x, dataset_y, 1, 0.1, 50)
