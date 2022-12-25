@@ -92,6 +92,8 @@ class SymbolicFunctionLearning:
 
         self.last_expression = None
 
+        self.best_expression = None
+
         self.nn = NeuralNetwork([self.operations_length, 8, self.operations_length])  # initialize the neural network with 2 input neurons, 3 hidden neurons, and 1 output neuron
 
 
@@ -129,9 +131,10 @@ class SymbolicFunctionLearning:
 
                     cost = self.nn.train(predicted_y, int(sample_y[0]), self.learning_rate)
                     print("cost : "+ str(cost))
+                    print(self.last_expression)
 
-            #print("y = "+self.decode_expression(self.last_expression))
-            print(self.last_expression)
+            print("y = "+decode_expression(self.last_expression))
+            #print(self.last_expression)
         else:
             print("datasets do not match. please try again.")
 
@@ -191,8 +194,9 @@ class SymbolicFunctionLearning:
                 index = self.variables.index(expression)
                 
                 return input_values[index]
-"""
-    def decode_expression(self, expression):
+
+#########################
+def decode_expression(expression):
         # If the expression is a list, it represents a mathematical operation
         if isinstance(expression, list):
             # Decode the operation and the two subexpressions
@@ -219,10 +223,9 @@ class SymbolicFunctionLearning:
                 return f"exp({subexpression1})"
         else:
             # If the expression is not a list, it is a constant value or a variable name
+            #print(expression)
             return str(expression)
-"""
-#########################
-
+        
 dataset_x = [[4, 4],
             [5, 4],
             [5, 5],
@@ -240,4 +243,4 @@ dataset_y = [[8],
             [14]]
 #########################
 sfl = SymbolicFunctionLearning()
-sfl.learn(dataset_x, dataset_y, 1, 0.1, 5000)
+sfl.learn(dataset_x, dataset_y, 3, 0.1, 50)
