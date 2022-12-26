@@ -62,9 +62,7 @@ class NeuralNetwork:
         max_index = np.argmax(lst)
         return operations[max_index]
 
-
     def train(self, predicted_y, sample_y, learning_rate):
-
         # Backpropagate the error and update the weights and biases
         for w, b in reversed(list(zip(self.weights, self.biases))):
             predicted_y = predicted_y - sample_y
@@ -73,6 +71,7 @@ class NeuralNetwork:
             b_delta = predicted_y
             w -= learning_rate * w_delta
             b -= learning_rate * b_delta
+
 
     def softmax_prime(self, z):
         # Calculate the derivative of the softmax activation function
@@ -134,10 +133,10 @@ class SymbolicFunctionLearning:
             self.learning_rate = learning_rate
             self.training_steps = training_steps
 
-            for sample_x, sample_y in zip(self.dataset_x, self.dataset_y):
+            for i in range(self.training_steps):
                 print("%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%")
                 print("%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%")
-                for i in range(self.training_steps):
+                for sample_x, sample_y in zip(self.dataset_x, self.dataset_y):
                     
                     self.last_expression = self.generate_expression(self.tree_depth, sample_x, i, k)
                     #i and k shows after what count of sfl learn iteration i, we use descrtized softmax  ,i comes from sfl.learn() and k comes from sfl.__init__()
@@ -169,9 +168,12 @@ class SymbolicFunctionLearning:
                     print("                 current f(X) = "+decode_expression(self.last_expression)+" ,predicted y = "+str(predicted_y)+" with cost = "+ str(cost))
                     print("                 BEST FIT F(X): "+decode_expression(self.best_expression)+" ,predicted y = "+str(best_expression_predicted_y)+" with cost = "+str(self.best_cost))
                     print("=====================================================================")
+
+                #if(self.best_cost < 0.001): return
             #print(self.last_expression)
         else:
             print("datasets do not match. please try again.")
+            
 
     def generate_expression(self, tree_depth, sample_x, i, k):
         # Generate a mathematical expression tree with the given depth using the neural network
@@ -283,13 +285,11 @@ dataset_y = []
 
 x1 = np.random.randint(1, 10, size=50)
 x2 = np.random.randint(1, 10, size=50)
-x3 = np.random.randint(1, 10, size=50)
 
 
-y = np.sin(x1)*x3
+y = (x2*x2)
 
-
-dataset_x = np.column_stack((x1, x2, x3))
+dataset_x = np.column_stack((x1, x2))
 dataset_y = np.column_stack((y,))
 
 #########################
@@ -297,4 +297,4 @@ dataset_y = np.column_stack((y,))
 sfl = SymbolicFunctionLearning()
 
 #i and k shows after what count of sfl learn iteration i, we use descrtized softmax  ,i comes from sfl.learn() and k comes from sfl.__init__()
-sfl.learn(dataset_x, dataset_y, 2, 0.1, 500, 100)
+sfl.learn(dataset_x, dataset_y, 1, 0.1, 500, 100)
