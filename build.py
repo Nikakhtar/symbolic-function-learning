@@ -9,19 +9,23 @@ class NeuralNetwork:
         self.weights = [np.random.randn(8, 8),np.random.randn(8, 8),np.random.randn(8, 8)]
         self.biases = [np.random.randn(8),np.random.randn(8),np.random.randn(8)]
 ###############################################################################2forward
-    def forward(self, p):
+    def forward(self, p, i, k):
+        #i and k shows after what count of sfl learn iteration i, we use descrtized softmax  ,i comes from sfl.learn() and k comes from sfl.__init__() 
         # Propagate the input through the network
         for w, b in zip(self.weights[:-1], self.biases[:-1]):
             p = np.dot(w, p) + b  # apply dot product and bias addition
             
         p = np.dot(self.weights[-1], p) + self.biases[-1]
         p = p.tolist()
+
+        if(i <= k):
+            p = self.softmax_standard(np.dot(self.weights[-1], p) + self.biases[-1])
+            #print(p)
+            return self.get_operation(p)
         
         # Apply the softmax function to the output of the final layer
         p = self.softmax(np.dot(self.weights[-1], p) + self.biases[-1])
-        #print(p)
         return self.get_operation(p)
-        #return "*"
 ####################################################################################
 
     def softmax(self, p):
@@ -40,6 +44,11 @@ class NeuralNetwork:
         updated_p[max_index] = 1
         # Convert the updated values back to a Python list
         return updated_p.tolist()
+
+    def softmax_standard(self, p):
+        # Apply the softmax activation function
+        exp_p = np.exp(p)
+        return exp_p / np.sum(exp_p)
 
     def get_operation(self, lst):
         operations = ['+', '-', '*', '/', 'sin', 'cos', 'tan', 'exp']
@@ -95,7 +104,8 @@ class SymbolicFunctionLearning:
         self.nn = NeuralNetwork([self.operations_length, 8, self.operations_length])  # initialize the neural network with 2 input neurons, 3 hidden neurons, and 1 output neuron
 
 
-    def learn(self, dataset_x, dataset_y, tree_depth, learning_rate, training_steps):
+    def learn(self, dataset_x, dataset_y, tree_depth, learning_rate, training_steps, k):
+        #i and k shows after what count of sfl learn iteration i, we use descrtized softmax  ,i comes from sfl.learn() and k comes from sfl.__init__()
         # Convert the datasets to NumPy arrays
         x = np.array(dataset_x)
         y = np.array(dataset_y)
@@ -126,7 +136,8 @@ class SymbolicFunctionLearning:
                 print("%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%")
                 for i in range(self.training_steps):
                     
-                    self.last_expression = self.generate_expression(self.tree_depth, sample_x)
+                    self.last_expression = self.generate_expression(self.tree_depth, sample_x, i, k)
+                    #i and k shows after what count of sfl learn iteration i, we use descrtized softmax  ,i comes from sfl.learn() and k comes from sfl.__init__()
 
                     predicted_y = self.evaluate_expression(self.last_expression, sample_x)
                     
@@ -139,14 +150,14 @@ class SymbolicFunctionLearning:
 
                     best_expression_predicted_y = self.evaluate_expression(self.best_expression, sample_x)
                     
-                    self.nn.train(predicted_y, float(sample_y[0]), self.learning_rate)
 
-                    if((np.sum((predicted_y - sample_y[0]) ** 2) / 2)<(np.sum((best_expression_predicted_y - sample_y[0]) ** 2) / 2)):    
-                    #if(cost < self.best_cost):
+                    if((np.sum((predicted_y - sample_y[0]) ** 2) / 2)<(np.sum((best_expression_predicted_y - sample_y[0]) ** 2) / 2)):
+
                         self.best_cost = cost
                         self.best_expression = self.last_expression
-                        #self.nn.train(predicted_y, int(sample_y[0]), self.learning_rate)
-                        
+    
+                    self.nn.train(predicted_y, float(sample_y[0]), self.learning_rate)
+                                                            
                     print("--------------------------")
                     print("y = "+decode_expression(self.last_expression))
                     print("cost : "+ str((np.sum((predicted_y - sample_y[0]) ** 2) / 2)))
@@ -156,7 +167,7 @@ class SymbolicFunctionLearning:
         else:
             print("datasets do not match. please try again.")
 
-    def generate_expression(self, tree_depth, sample_x):
+    def generate_expression(self, tree_depth, sample_x, i, k):
         # Generate a mathematical expression tree with the given depth using the neural network
         if tree_depth == 0:
             # If the depth is zero, return a random variable or a constant value
@@ -164,12 +175,12 @@ class SymbolicFunctionLearning:
             return np.random.choice(self.variables)
         else:
             # If the depth is greater than zero, use the neural network to generate a random operation with two subexpressions
-            operation = self.nn.forward(self.operator_p(self.generate_expression(tree_depth-1, sample_x),
-            self.generate_expression(tree_depth-1, sample_x), sample_x))
+            operation = self.nn.forward(self.operator_p(self.generate_expression(tree_depth-1, sample_x, i, k),
+            self.generate_expression(tree_depth-1, sample_x, i, k), sample_x), i, k)
 
             return [operation,
-                    self.generate_expression(tree_depth-1, sample_x),
-                    self.generate_expression(tree_depth-1, sample_x)]
+                    self.generate_expression(tree_depth-1, sample_x, i, k),
+                    self.generate_expression(tree_depth-1, sample_x, i, k)]
 
     def operator_p(self, input_x1, input_x2, sample_x):
         p = []
@@ -243,7 +254,7 @@ def decode_expression(expression):
             # If the expression is not a list, it is a constant value or a variable name
             #print(expression)
             return str(expression)
-"""      
+"""
 dataset_x = [[4, 4],
             [5, 4],
             [5, 5],
@@ -267,16 +278,19 @@ dataset_y = []
 
 x1 = np.random.randint(1, 10, size=50)
 x2 = np.random.randint(1, 10, size=50)
+x3 = np.random.randint(1, 10, size=50)
 
 # Calculate y using the equation y = exp(x1) + x2
 #y = np.exp(x1) + x2
-y = np.cos(x1) * np.sin(x2)
+y = x1*x2+x3
 
 # Create the dataset_x and dataset_y arrays
-dataset_x = np.column_stack((x1, x2))
+dataset_x = np.column_stack((x1, x2, x3))
 dataset_y = np.column_stack((y,))
 
 #########################
 #########################
 sfl = SymbolicFunctionLearning()
-sfl.learn(dataset_x, dataset_y, 1, 0.1, 50)
+
+#i and k shows after what count of sfl learn iteration i, we use descrtized softmax  ,i comes from sfl.learn() and k comes from sfl.__init__()
+sfl.learn(dataset_x, dataset_y, 2, 0.3, 50, 10)
