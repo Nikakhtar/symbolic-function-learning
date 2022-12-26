@@ -1,6 +1,10 @@
 import numpy as np
 import pdb
-
+"""
+Teacher : Kourosh Parand
+Student : Ali Nikakhtar 
+student id : 99422195
+"""
 class NeuralNetwork:
     def __init__(self, layers):
         # Initialize weights and biases with random values WHICH X= FIRST LAYER
@@ -158,11 +162,10 @@ class SymbolicFunctionLearning:
     
                     self.nn.train(predicted_y, float(sample_y[0]), self.learning_rate)
                                                             
-                    print("--------------------------")
-                    print("y = "+decode_expression(self.last_expression))
-                    print("cost : "+ str((np.sum((predicted_y - sample_y[0]) ** 2) / 2)))
-                    print("---------------------------")
-                    print("best f(X): "+decode_expression(self.best_expression)+" with cost = "+str(self.best_cost))
+                    print("====================================================================")
+                    print("                 current f(X) = "+decode_expression(self.last_expression)+" with cost = "+ str((np.sum((predicted_y - sample_y[0]) ** 2) / 2)))
+                    print("                 BEST FIT F(X): "+decode_expression(self.best_expression)+" with cost = "+str(self.best_cost))
+                    print("=====================================================================")
             #print(self.last_expression)
         else:
             print("datasets do not match. please try again.")
@@ -282,7 +285,7 @@ x3 = np.random.randint(1, 10, size=50)
 
 # Calculate y using the equation y = exp(x1) + x2
 #y = np.exp(x1) + x2
-y = x1*x2+x3
+y = x1+x3
 
 # Create the dataset_x and dataset_y arrays
 dataset_x = np.column_stack((x1, x2, x3))
@@ -293,4 +296,4 @@ dataset_y = np.column_stack((y,))
 sfl = SymbolicFunctionLearning()
 
 #i and k shows after what count of sfl learn iteration i, we use descrtized softmax  ,i comes from sfl.learn() and k comes from sfl.__init__()
-sfl.learn(dataset_x, dataset_y, 2, 0.3, 50, 10)
+sfl.learn(dataset_x, dataset_y, 1, 0.3, 50, 10)
