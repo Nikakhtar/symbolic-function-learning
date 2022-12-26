@@ -36,10 +36,10 @@ class NeuralNetwork:
         #p = p.tolist()
         #print(p)
 
-        # Convert the list to a NumPy array
+        
         p = np.array(p)
 
-        # Initialize an array to store the updated values
+        
         updated_p = np.zeros(p.shape)
 
         # Find the index of the maximum value in p
@@ -50,6 +50,9 @@ class NeuralNetwork:
         return updated_p.tolist()
 
     def softmax_standard(self, p):
+        # Shift the values of p so that the maximum value is 0
+        p -= np.max(p)
+        
         # Apply the softmax activation function
         exp_p = np.exp(p)
         return exp_p / np.sum(exp_p)
@@ -105,7 +108,7 @@ class SymbolicFunctionLearning:
 
         self.best_cost = None
 
-        self.nn = NeuralNetwork([self.operations_length, 8, self.operations_length])  # initialize the neural network with 2 input neurons, 3 hidden neurons, and 1 output neuron
+        self.nn = NeuralNetwork([self.operations_length, 8, self.operations_length])  # initialize the neural network with 8 input neurons, 8 hidden neurons, and 8 output neuron
 
 
     def learn(self, dataset_x, dataset_y, tree_depth, learning_rate, training_steps, k):
@@ -125,18 +128,14 @@ class SymbolicFunctionLearning:
 
             # Initialize a list to store the variable names
             self.variables = ['x' + str(i+1) for i in range(self.num_variables)]
-            #print(self.variables)
-            # Store the depth of the tree
+
             self.tree_depth = tree_depth
 
             self.learning_rate = learning_rate
             self.training_steps = training_steps
 
             for sample_x, sample_y in zip(self.dataset_x, self.dataset_y):
-                # Here, you can access each individual data sample using the variables sample_x and sample_y
                 print("%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%")
-                print(f"                            Sample x: {sample_x}")
-                print(f"                            Sample y: {sample_y}")
                 print("%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%")
                 for i in range(self.training_steps):
                     
@@ -153,18 +152,22 @@ class SymbolicFunctionLearning:
                         self.best_cost = cost
 
                     best_expression_predicted_y = self.evaluate_expression(self.best_expression, sample_x)
+                    self.best_cost = np.sum((best_expression_predicted_y - sample_y[0]) ** 2) / 2
                     
 
-                    if((np.sum((predicted_y - sample_y[0]) ** 2) / 2)<(np.sum((best_expression_predicted_y - sample_y[0]) ** 2) / 2)):
+                    if(cost < self.best_cost):
 
                         self.best_cost = cost
                         self.best_expression = self.last_expression
     
-                    self.nn.train(predicted_y, float(sample_y[0]), self.learning_rate)
+                        self.nn.train(predicted_y, float(sample_y[0]), self.learning_rate)
                                                             
                     print("====================================================================")
-                    print("                 current f(X) = "+decode_expression(self.last_expression)+" with cost = "+ str((np.sum((predicted_y - sample_y[0]) ** 2) / 2)))
-                    print("                 BEST FIT F(X): "+decode_expression(self.best_expression)+" with cost = "+str(self.best_cost))
+                    print(f"                            Sample x: {sample_x}")
+                    #print("\n")
+                    print(f"                            Sample y: {sample_y}")
+                    print("                 current f(X) = "+decode_expression(self.last_expression)+" ,predicted y = "+str(predicted_y)+" with cost = "+ str(cost))
+                    print("                 BEST FIT F(X): "+decode_expression(self.best_expression)+" ,predicted y = "+str(best_expression_predicted_y)+" with cost = "+str(self.best_cost))
                     print("=====================================================================")
             #print(self.last_expression)
         else:
@@ -255,7 +258,6 @@ def decode_expression(expression):
                 return f"exp({subexpression1})"
         else:
             # If the expression is not a list, it is a constant value or a variable name
-            #print(expression)
             return str(expression)
 """
 dataset_x = [[4, 4],
@@ -283,11 +285,10 @@ x1 = np.random.randint(1, 10, size=50)
 x2 = np.random.randint(1, 10, size=50)
 x3 = np.random.randint(1, 10, size=50)
 
-# Calculate y using the equation y = exp(x1) + x2
-#y = np.exp(x1) + x2
-y = x1+x3
 
-# Create the dataset_x and dataset_y arrays
+y = np.sin(x1)*x3
+
+
 dataset_x = np.column_stack((x1, x2, x3))
 dataset_y = np.column_stack((y,))
 
@@ -296,4 +297,4 @@ dataset_y = np.column_stack((y,))
 sfl = SymbolicFunctionLearning()
 
 #i and k shows after what count of sfl learn iteration i, we use descrtized softmax  ,i comes from sfl.learn() and k comes from sfl.__init__()
-sfl.learn(dataset_x, dataset_y, 1, 0.3, 50, 10)
+sfl.learn(dataset_x, dataset_y, 2, 0.1, 500, 100)
