@@ -169,7 +169,7 @@ class SymbolicFunctionLearning:
                     print("                 BEST FIT F(X): "+decode_expression(self.best_expression)+" ,predicted y = "+str(best_expression_predicted_y)+" with cost = "+str(self.best_cost))
                     print("=====================================================================")
 
-                #if(self.best_cost < 0.001): return
+                if(self.best_cost < 0.0001): return
             #print(self.last_expression)
         else:
             print("datasets do not match. please try again.")
