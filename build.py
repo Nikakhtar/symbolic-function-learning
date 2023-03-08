@@ -7,6 +7,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 import torch.optim as optim
 import torch.nn.utils as utils
+import math
 
 class BinaryTreeRNN(nn.Module):
     def __init__(self):
@@ -26,7 +27,7 @@ class BinaryTreeRNN(nn.Module):
         self.num_variables = None
         
         # Initialize a list to store the mathematical operations that can be performed
-        self.operations = ['+', 'sin', 'cos', 'exp']
+        self.operations = ['+', 'sin', 'cos']
 
         # Get the length of the operations list
         self.operations_length = len(self.operations)
@@ -97,7 +98,7 @@ class BinaryTreeRNN(nn.Module):
                 #self.last_expression = [[None for j in range(dataset_x.shape[0])] for i in range(2**self.num_layers - 1)]
                 self.last_expression = [None] * (2**self.num_layers -1)
                 
-                torch.autograd.set_detect_anomaly(True)
+                torch.autograd.set_detect_anomaly(False)
 
                 y_hat = self.forward(1, dataset_x)
 
@@ -108,7 +109,7 @@ class BinaryTreeRNN(nn.Module):
                 if(self.step_counter%2 == 0):
                     print("%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%")
                     print("%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%")
-                    print(self.get_nth_element(self.last_expression))
+                    print(self.parse_math_expr_tree(self.get_nth_element(self.last_expression)))
                     print("ERROR="+str(loss))
 
                 # calculate L1 regularization term
@@ -187,25 +188,19 @@ class BinaryTreeRNN(nn.Module):
             p_copy = p.clone()
 
             if op == '+':
-                #p[i] = left_child_h + right_child_h
                 p_copy[i] = torch.add(left_child_h, right_child_h)
             elif op == '*':
-                #p[i] = torch.mul(left_child_h, right_child_h)
                 p_copy[i] = torch.mul(left_child_h, right_child_h)
             elif op == 'sin':
-                #p[i] = torch.sin(left_child_h + right_child_h)
                 add = torch.add(left_child_h, right_child_h)
                 p_copy[i] = torch.sin(add)
             elif op == 'cos':
-                #p[i] = torch.cos(left_child_h + right_child_h)
                 add = torch.add(left_child_h  ,right_child_h)
                 p_copy[i] = torch.cos(add)
             elif op == 'exp':
-                #p[i] = torch.cos(left_child_h + right_child_h)
                 add = torch.add(left_child_h  ,right_child_h)
                 p_copy[i] = torch.exp(add)
             elif op == 'id':
-                #p[i] = left_child_h + right_child_h
                 p_copy[i] = torch.add(left_child_h, right_child_h)
 
             p = p_copy
@@ -255,16 +250,62 @@ class BinaryTreeRNN(nn.Module):
     def get_nth_element(self, lst):
         return [sublst[len(lst)] for n, sublst in enumerate(lst, start=1)]
 #########################
+    def parse_math_expr_tree(self, expr_tree_list):
+        # Define a recursive function to parse the tree
+        def parse_node(node_index):
+            if node_index > len(expr_tree_list):
+                return ''
+            
+            # Check if this is a leaf node (i.e. a variable)
+            if 2*node_index >= len(expr_tree_list):
+                return expr_tree_list[node_index-1]
+            
+            # Otherwise, this is an interior node (i.e. an operator)
+            operator = expr_tree_list[node_index-1]
+            left_child_index = 2*node_index
+            right_child_index = 2*node_index + 1
+            
+            # Recursively parse the left and right children
+            left_expr = parse_node(left_child_index)
+            right_expr = parse_node(right_child_index)
+            
+            # Combine the left and right expressions with the operator
+            if operator == 'sin':
+                return f'sin({left_expr} + {right_expr})'
+            elif operator == 'cos':
+                return f'cos({left_expr} + {right_expr})'
+            elif operator == 'exp':
+                return f'e^({left_expr} + {right_expr})'
+            elif operator == '+':
+                return f'({left_expr} + {right_expr})'
+            elif operator == '-':
+                return f'({left_expr} - {right_expr})'
+            elif operator == '*':
+                return f'({left_expr} * {right_expr})'
+            elif operator == '/':
+                return f'({left_expr} / {right_expr})'
+            else:
+                return ''
+        
+        # Start parsing at the root node (index 1)
+        return parse_node(1)
+#########################
 x1 = torch.FloatTensor(50000).uniform_(1, 10)
 x2 = torch.FloatTensor(50000).uniform_(1, 10)
 
 dataset_x = torch.stack((x1, x2), dim=1)
-dataset_y = torch.sin(x1+x2)
+dataset_y = x2+x2
 #########################
-#scaler = MinMaxScaler()
-#dataset_x_norm = scaler.fit_transform(dataset_x)
+scaler = MinMaxScaler()
+dataset_x_norm = scaler.fit_transform(dataset_x)
 #dataset_y_norm = scaler.fit_transform(dataset_y)
 #########################
+dataset_x_norm = np.array(dataset_x_norm)
+#dataset_y_norm = np.array(dataset_y_norm)
+
+dataset_x = torch.from_numpy(dataset_x_norm)
+dataset_x = torch.tensor(dataset_x, dtype=torch.float)
+#dataset_y = torch.from_numpy(dataset_y_norm)
 
 rnn= BinaryTreeRNN()
 rnn.learn(dataset_x, dataset_y, num_layers = 2, training_steps_by_standard_softmax = 3000, training_steps_by_softmax_prime = 9000, lr=.1, lambda_L1 =.001)
