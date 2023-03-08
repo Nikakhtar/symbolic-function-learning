@@ -27,7 +27,7 @@ class BinaryTreeRNN(nn.Module):
         self.num_variables = None
         
         # Initialize a list to store the mathematical operations that can be performed
-        self.operations = ['+', 'sin', 'cos']
+        self.operations = ['+', 'sin', 'cos', '*']
 
         # Get the length of the operations list
         self.operations_length = len(self.operations)
@@ -109,7 +109,7 @@ class BinaryTreeRNN(nn.Module):
                 if(self.step_counter%2 == 0):
                     print("%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%")
                     print("%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%")
-                    print(self.parse_math_expr_tree(self.get_nth_element(self.last_expression)))
+                    print(" y = "+self.parse_math_expr_tree(self.get_nth_element(self.last_expression)))
                     print("ERROR="+str(loss))
 
                 # calculate L1 regularization term
@@ -190,7 +190,8 @@ class BinaryTreeRNN(nn.Module):
             if op == '+':
                 p_copy[i] = torch.add(left_child_h, right_child_h)
             elif op == '*':
-                p_copy[i] = torch.mul(left_child_h, right_child_h)
+                f = torch.mul(left_child_h.clone(), right_child_h.clone())
+                p_copy[i] = f.clone()
             elif op == 'sin':
                 add = torch.add(left_child_h, right_child_h)
                 p_copy[i] = torch.sin(add)
@@ -292,19 +293,20 @@ class BinaryTreeRNN(nn.Module):
 #########################
 x1 = torch.FloatTensor(50000).uniform_(1, 10)
 x2 = torch.FloatTensor(50000).uniform_(1, 10)
+x3 = torch.FloatTensor(50000).uniform_(1, 10)
 
-dataset_x = torch.stack((x1, x2), dim=1)
-dataset_y = x2+x2
+dataset_x = torch.stack((x1, x2, x3), dim=1)
+dataset_y = torch.sin(x1+x2)
 #########################
-scaler = MinMaxScaler()
-dataset_x_norm = scaler.fit_transform(dataset_x)
+#scaler = MinMaxScaler()
+#dataset_x_norm = scaler.fit_transform(dataset_x)
 #dataset_y_norm = scaler.fit_transform(dataset_y)
 #########################
-dataset_x_norm = np.array(dataset_x_norm)
+#dataset_x_norm = np.array(dataset_x_norm)
 #dataset_y_norm = np.array(dataset_y_norm)
 
-dataset_x = torch.from_numpy(dataset_x_norm)
-dataset_x = torch.tensor(dataset_x, dtype=torch.float)
+#dataset_x = torch.from_numpy(dataset_x_norm)
+#dataset_x = torch.tensor(dataset_x, dtype=torch.float)
 #dataset_y = torch.from_numpy(dataset_y_norm)
 
 rnn= BinaryTreeRNN()
