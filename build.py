@@ -1,300 +1,344 @@
+
+from sklearn.preprocessing import MinMaxScaler
+from numpy.typing import NDArray
 import numpy as np
+import torch
+import torch.nn as nn
+import torch.nn.functional as F
+import torch.optim as optim
+import torch.nn.utils as utils
+import math
+import matplotlib.pyplot as plt
 import pdb
-"""
-Teacher : Kourosh Parand
-Student : Ali Nikakhtar 
-student id : 99422195
-"""
-class NeuralNetwork:
-    def __init__(self, layers):
-        # Initialize weights and biases with random values WHICH X= FIRST LAYER
-        #self.weights = [np.random.randn(y, x) for x, y in zip(layers[:-1], layers[1:])]
-        #self.biases = [np.random.randn(y, 1) for y in layers[1:]]
-        self.weights = [np.random.randn(8, 8),np.random.randn(8, 8),np.random.randn(8, 8)]
-        self.biases = [np.random.randn(8),np.random.randn(8),np.random.randn(8)]
-###############################################################################2forward
-    def forward(self, p, i, k):
-        #i and k shows after what count of sfl learn iteration i, we use descrtized softmax  ,i comes from sfl.learn() and k comes from sfl.__init__() 
-        # Propagate the input through the network
-        for w, b in zip(self.weights[:-1], self.biases[:-1]):
-            p = np.dot(w, p) + b  # apply dot product and bias addition
-            
-        p = np.dot(self.weights[-1], p) + self.biases[-1]
-        p = p.tolist()
 
-        if(i <= k):
-            p = self.softmax_standard(np.dot(self.weights[-1], p) + self.biases[-1])
-            #print(p)
-            return self.get_operation(p)
-        
-        # Apply the softmax function to the output of the final layer
-        p = self.softmax(np.dot(self.weights[-1], p) + self.biases[-1])
-        return self.get_operation(p)
-####################################################################################
-
-    def softmax(self, p):
-        #p = p.tolist()
-        #print(p)
-
-        
-        p = np.array(p)
-
-        
-        updated_p = np.zeros(p.shape)
-
-        # Find the index of the maximum value in p
-        max_index = np.argmax(p)
-        # Set the value at the maximum index to 1
-        updated_p[max_index] = 1
-        # Convert the updated values back to a Python list
-        return updated_p.tolist()
-
-    def softmax_standard(self, p):
-        # Shift the values of p so that the maximum value is 0
-        p -= np.max(p)
-        
-        # Apply the softmax activation function
-        exp_p = np.exp(p)
-        return exp_p / np.sum(exp_p)
-
-    def get_operation(self, lst):
-        operations = ['+', '-', '*', '/', 'sin', 'cos', 'tan', 'exp']
-        max_index = np.argmax(lst)
-        return operations[max_index]
-
-    def train(self, predicted_y, sample_y, learning_rate):
-        # Backpropagate the error and update the weights and biases
-        for w, b in reversed(list(zip(self.weights, self.biases))):
-            predicted_y = predicted_y - sample_y
-            #w_delta = np.dot(predicted_y, self.softmax_prime(np.dot(w, sample_y) + b))
-            w_delta = np.random.randn()
-            b_delta = predicted_y
-            w -= learning_rate * w_delta
-            b -= learning_rate * b_delta
-
-
-    def softmax_prime(self, z):
-        # Calculate the derivative of the softmax activation function
-        softmax = self.softmax(z)
-        return softmax * (1 - softmax)
-########################################
-
-class SymbolicFunctionLearning:
+class BinaryTreeRNN(nn.Module):
     def __init__(self):
-        self.dataset_x = None
-        self.dataset_y = None
+        super(BinaryTreeRNN, self).__init__()
 
-        self.num_variables = None
+        self.num_layers = None
+
+        self.last_expression = None
+
+        self.training_steps_by_standard_softmax = None
+
+        self.training_steps_by_softmax_prime = None
 
         # Initialize a list to store the variable names
         self.variables = None
 
+        self.num_variables = None
+        
         # Initialize a list to store the mathematical operations that can be performed
-        self.operations = ['+', '-', '*', '/', 'sin', 'cos', 'tan', 'exp']
+        self.operations = ['+', 'sin', 'cos', '*']
 
         # Get the length of the operations list
         self.operations_length = len(self.operations)
 
-        # Store the depth of the tree
-        self.tree_depth = None
+        self.first_layer_weights = None
+        self.first_layer_biases = None
+          
+        # Initialize weights and biases for the remaining layers
+        self.weights = None
+        self.biases = None
 
-        self.learning_rate = None
-        self.training_steps = None
+        # Initialize omegas for the remaining layers
+        self.omegas = None
 
-        self.last_expression = None
+        self.lambda_L1 = None
 
-        self.best_expression = None
+        self.hidden_values = None
+        
+        self.step_counter = None
+        
 
-        self.best_cost = None
-
-        self.nn = NeuralNetwork([self.operations_length, 8, self.operations_length])  # initialize the neural network with 8 input neurons, 8 hidden neurons, and 8 output neuron
-
-
-    def learn(self, dataset_x, dataset_y, tree_depth, learning_rate, training_steps, k):
-        #i and k shows after what count of sfl learn iteration i, we use descrtized softmax  ,i comes from sfl.learn() and k comes from sfl.__init__()
-        # Convert the datasets to NumPy arrays
-        x = np.array(dataset_x)
-        y = np.array(dataset_y)
+ ######################### 
+    def learn(self, dataset_x, dataset_y, num_layers, training_steps_by_standard_softmax, training_steps_by_softmax_prime, lr, lambda_L1):
 
         # Check if the dimensions of the arrays are correct
-        if x.shape[0] == y.shape[0] and x.shape[1] > 1 and y.shape[1] == 1:
+        if dataset_x.shape[0] == dataset_y.shape[0] and dataset_x.shape[1] >= 1:
             print("datasets are okay.")
 
-            self.dataset_x = dataset_x
-            self.dataset_y = dataset_y
-
-            self.num_variables = np.array(self.dataset_x).shape[1]
+            self.num_variables = np.array(dataset_x).shape[1]
 
             # Initialize a list to store the variable names
             self.variables = ['x' + str(i+1) for i in range(self.num_variables)]
-
-            self.tree_depth = tree_depth
-
-            self.learning_rate = learning_rate
-            self.training_steps = training_steps
-
-            for i in range(self.training_steps):
-                print("%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%")
-                print("%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%")
-                for sample_x, sample_y in zip(self.dataset_x, self.dataset_y):
-                    
-                    self.last_expression = self.generate_expression(self.tree_depth, sample_x, i, k)
-                    #i and k shows after what count of sfl learn iteration i, we use descrtized softmax  ,i comes from sfl.learn() and k comes from sfl.__init__()
-
-                    predicted_y = self.evaluate_expression(self.last_expression, sample_x)
-                    
-                    # Calculate the cost using mean squared error
-                    cost = np.sum((predicted_y - sample_y[0]) ** 2) / 2
-                    
-                    if(self.best_expression == None):
-                        self.best_expression = self.last_expression
-                        self.best_cost = cost
-
-                    best_expression_predicted_y = self.evaluate_expression(self.best_expression, sample_x)
-                    self.best_cost = np.sum((best_expression_predicted_y - sample_y[0]) ** 2) / 2
-                    
-
-                    if(cost < self.best_cost):
-
-                        self.best_cost = cost
-                        self.best_expression = self.last_expression
-    
-                        self.nn.train(predicted_y, float(sample_y[0]), self.learning_rate)
-                                                            
-                    print("====================================================================")
-                    print(f"                            Sample x: {sample_x}")
-                    #print("\n")
-                    print(f"                            Sample y: {sample_y}")
-                    print("                 current f(X) = "+decode_expression(self.last_expression)+" ,predicted y = "+str(predicted_y)+" with cost = "+ str(cost))
-                    print("                 BEST FIT F(X): "+decode_expression(self.best_expression)+" ,predicted y = "+str(best_expression_predicted_y)+" with cost = "+str(self.best_cost))
-                    print("=====================================================================")
-
-                if(self.best_cost < 0.0001): return
-            #print(self.last_expression)
-        else:
-            print("datasets do not match. please try again.")
             
 
-    def generate_expression(self, tree_depth, sample_x, i, k):
-        # Generate a mathematical expression tree with the given depth using the neural network
-        if tree_depth == 0:
-            # If the depth is zero, return a random variable or a constant value
-            #print(self.variables)
-            return np.random.choice(self.variables)
+            self.num_layers = num_layers
+
+            self.training_steps_by_standard_softmax = training_steps_by_standard_softmax
+            self.training_steps_by_softmax_prime = training_steps_by_softmax_prime
+            total_training_steps =  self.training_steps_by_standard_softmax + self.training_steps_by_softmax_prime
+
+            # Initialize weights and biases for the first layer(Leaf)
+            self.first_layer_weights = nn.Parameter(torch.randn(2**(num_layers-1), self.num_variables, dtype=torch.float32), requires_grad=True)
+
+            self.first_layer_biases = nn.Parameter(torch.randn(2**(num_layers-1), dtype=torch.float32), requires_grad=True)
+            
+            # Initialize weights and biases for the remaining layers(interior)
+            self.weights = nn.ParameterList([nn.Parameter(torch.randn(2**(level-1), dtype=torch.float32), requires_grad=True) for level in range(1, self.num_layers)])
+            self.biases = nn.ParameterList([nn.Parameter(torch.randn(2**(level-1), dtype=torch.float32), requires_grad=True) for level in range(1, self.num_layers)])
+
+
+            # Initialize omegas for the remaining layers
+            self.omegas = nn.ParameterList([nn.Parameter(torch.randn(2**(level-1), self.operations_length, dtype=torch.float32), requires_grad=True) for level in range(1, self.num_layers)])
+
+            # set up the optimizer
+            optimizer = optim.SGD(self.parameters(), lr=lr)
+            
+
+            self.lambda_L1 = lambda_L1
+
+            for self.step_counter in range(total_training_steps):
+
+                optimizer.zero_grad()
+                loss = 0.0
+                
+                # create an empty tensor of the desired shape
+                tensor_shape = (2**self.num_layers - 1, dataset_x.shape[0])
+                self.hidden_values = torch.empty(*tensor_shape, dtype=torch.float)
+                #self.last_expression = [[None for j in range(dataset_x.shape[0])] for i in range(2**self.num_layers - 1)]
+                self.last_expression = [None] * (2**self.num_layers -1)
+                
+                torch.autograd.set_detect_anomaly(False)
+
+                y_hat = self.forward(1, dataset_x)
+
+                # define the loss function
+                loss = nn.functional.mse_loss(y_hat, dataset_y)
+
+
+                if(self.step_counter%2 == 0):
+                    parsed_math_expr_tree = self.parse_math_expr_tree(self.get_nth_element(self.last_expression))
+                    print("%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%")
+                    print("%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%")
+                    print("y_hat = "+parsed_math_expr_tree)
+                    print("ERROR="+str(loss))
+                    self.expression_plotter(dataset_x, "sin(cos(x1+x1)+sin(x1+x1))",parsed_math_expr_tree)
+
+                # calculate L1 regularization term
+                L1_reg = torch.tensor(0., requires_grad=True)
+                for param in self.parameters():
+                    L1_reg = L1_reg + torch.norm(param, 1)
+                L1_loss = self.lambda_L1 * L1_reg
+                loss = loss + L1_loss
+                
+                
+                loss.backward(retain_graph=True) # backward pass
+
+                # clip gradients to avoid exploding gradients
+                # set the maximum norm to 1.0
+                max_norm = 1.0
+                utils.clip_grad_norm_(self.parameters(), max_norm)
+
+                # update the parameters with gradient descent
+                optimizer.step()
+
+
         else:
-            # If the depth is greater than zero, use the neural network to generate a random operation with two subexpressions
-            operation = self.nn.forward(self.operator_p(self.generate_expression(tree_depth-1, sample_x, i, k),
-            self.generate_expression(tree_depth-1, sample_x, i, k), sample_x), i, k)
+              print("datasets do not match. please try again.")
 
-            return [operation,
-                    self.generate_expression(tree_depth-1, sample_x, i, k),
-                    self.generate_expression(tree_depth-1, sample_x, i, k)]
+#########################
+    def forward(self, i, dataset_x):
+        left_child = 2 * i
+        right_child = 2 * i + 1
+        layer, j = self.layer_position(i)
 
-    def operator_p(self, input_x1, input_x2, sample_x):
-        p = []
-        p.append(self.evaluate_expression(input_x1, sample_x) + self.evaluate_expression(input_x2, sample_x))
-        p.append(self.evaluate_expression(input_x1, sample_x) - self.evaluate_expression(input_x2, sample_x))
-        p.append(self.evaluate_expression(input_x1, sample_x) * self.evaluate_expression(input_x2, sample_x))
-        p.append(self.evaluate_expression(input_x1, sample_x) / self.evaluate_expression(input_x2, sample_x))
-        p.append(np.sin(self.evaluate_expression(input_x1, sample_x) + self.evaluate_expression(input_x2, sample_x)))
-        p.append(np.cos(self.evaluate_expression(input_x1, sample_x) + self.evaluate_expression(input_x2, sample_x)))
-        p.append(np.tan(self.evaluate_expression(input_x1, sample_x) + self.evaluate_expression(input_x2, sample_x)))
-        p.append(np.exp(self.evaluate_expression(input_x1, sample_x) + self.evaluate_expression(input_x2, sample_x)))
+        if left_child >= self.num_layers ** 2 - 1:
+            if right_child >= self.num_layers ** 2 - 1:
+
+                f_l_w = self.first_layer_weights[j]
+                f_l_b = self.first_layer_biases[j]
+                d_x_t = dataset_x.transpose(0, 1)
+                h_v = torch.matmul(f_l_w, d_x_t) + f_l_b
+
+                self.hidden_values[i-1] = h_v.clone()
+                
+                self.last_expression[i-1] = self.get_leaf(f_l_w, d_x_t)
+
+
+                return self.hidden_values[i-1]
+                  ############
+
+        weight = self.weights[layer][j]
+        bias = self.biases[layer][j]
+
+        left_output = self.forward(left_child, dataset_x)
+        right_output = self.forward(right_child, dataset_x)
+            
+        op_p = self.operator_p(left_output, right_output)
+
+        if(self.step_counter < self.training_steps_by_standard_softmax):
+            omega = F.softmax(self.omegas[layer][j], dim=0)
+        
+        else:
+            omega = self.softmax_prime(self.omegas[layer][j])
+
+        hidden_value = weight * torch.matmul(omega, op_p) + bias
+
+        self.hidden_values[i-1] = hidden_value.clone()
+
+        self.last_expression[i-1] = self.get_operation(omega, op_p)
+        
+        return self.hidden_values[i-1]
+#########################
+
+    def operator_p(self, left_child_h, right_child_h):
+        # initialize an empty vector to hold the results
+        p = torch.zeros((len(self.operations), len(left_child_h)), requires_grad=True)
+        # loop over each operator in self.operations and apply it to left_child_h and right_child_h
+        for i, op in enumerate(self.operations):
+            
+            p_copy = p.clone()
+
+            if op == '+':
+                p_copy[i] = torch.add(left_child_h, right_child_h)
+            elif op == '*':
+                f = torch.mul(left_child_h.clone(), right_child_h.clone())
+                p_copy[i] = f.clone()
+            elif op == 'sin':
+                add = torch.add(left_child_h, right_child_h)
+                p_copy[i] = torch.sin(add)
+            elif op == 'cos':
+                add = torch.add(left_child_h  ,right_child_h)
+                p_copy[i] = torch.cos(add)
+            elif op == 'exp':
+                add = torch.add(left_child_h  ,right_child_h)
+                p_copy[i] = torch.exp(add)
+            elif op == 'id':
+                p_copy[i] = torch.add(left_child_h, right_child_h)
+
+            p = p_copy
+
+        # return the resulting vector
         return p
 
+######################
+    def softmax_prime(self, omegas):
+        # Find the index of the maximum value in self.omegas[layer][j]
+        max_idx = torch.argmax(omegas)
+        
+        # Create a tensor of zeros with the same shape as self.omegas[layer][j]
+        zeros = torch.zeros_like(omegas)
+        
+        # Set the element at the maximum index to 1
+        zeros[max_idx] = 1
+        
+        # Return the tensor
+        return zeros
+#########################    
+    def layer_position(self, i):
+        i_backup = i
+        layer = 0
+        while i > 0:
+            i //= 2
+            layer += 1
+        layer -= 1  # Adjust for 0-based indexing
 
-    def evaluate_expression(self, expression, input_values):
-        # Evaluate the given mathematical expression with the given input values
-        if isinstance(expression, list):
-            # If the expression is a list, it represents a mathematical operation
-            operation = expression[0]
-            if operation == '+':
-                return self.evaluate_expression(expression[1], input_values) + self.evaluate_expression(expression[2], input_values)
-            elif operation == '-':
-                return self.evaluate_expression(expression[1], input_values) - self.evaluate_expression(expression[2], input_values)
-            elif operation == '*':
-                return self.evaluate_expression(expression[1], input_values) * self.evaluate_expression(expression[2], input_values)
-            elif operation == '/':
-                return self.evaluate_expression(expression[1], input_values) / self.evaluate_expression(expression[2], input_values)
-            elif operation == 'sin':
-                return np.sin(self.evaluate_expression(expression[1], input_values))
-            elif operation == 'cos':
-                return np.cos(self.evaluate_expression(expression[1], input_values))
-            elif operation == 'tan':
-                return np.tan(self.evaluate_expression(expression[1], input_values))
-            elif operation == 'exp':
-                return np.exp(self.evaluate_expression(expression[1], input_values))
-        else:
-            # If the expression is not a list, it is either a constant value or a variable.
-            if expression in self.variables:
-                # Return the corresponding input value
-                index = self.variables.index(expression)
-                
-                return input_values[index]
+        leftmost_index = 2**layer - 1
+        index_in_layer = i_backup - leftmost_index - 1
+
+        return layer, index_in_layer
+#########################
+    def get_operation(self, s, v):
+        elementwise_product = torch.mul(s, v.transpose(0,1))
+        max_index = torch.argmax(elementwise_product, dim=-1)
+        return [self.operations[i] for i in max_index]
 
 #########################
-def decode_expression(expression):
-        # If the expression is a list, it represents a mathematical operation
-        if isinstance(expression, list):
-            # Decode the operation and the two subexpressions
-            operation = expression[0]
-            subexpression1 = decode_expression(expression[1])
-            subexpression2 = decode_expression(expression[2])
-
-            # Return the infix notation for the operation and the subexpressions
-            if operation == '+':
-                return f"({subexpression1} + {subexpression2})"
-            elif operation == '-':
-                return f"({subexpression1} - {subexpression2})"
-            elif operation == '*':
-                return f"({subexpression1} * {subexpression2})"
-            elif operation == '/':
-                return f"({subexpression1} / {subexpression2})"
-            elif operation == 'sin':
-                return f"sin({subexpression1})"
-            elif operation == 'cos':
-                return f"cos({subexpression1})"
-            elif operation == 'tan':
-                return f"tan({subexpression1})"
-            elif operation == 'exp':
-                return f"exp({subexpression1})"
-        else:
-            # If the expression is not a list, it is a constant value or a variable name
-            return str(expression)
-"""
-dataset_x = [[4, 4],
-            [5, 4],
-            [5, 5],
-            [5, 6],
-            [6, 6],
-            [7, 6],
-            [7, 7]]
-
-dataset_y = [[16],
-            [20],
-            [25],
-            [30],
-            [36],
-            [42],
-            [49]]
-"""
-#########################
-
-dataset_x = []
-dataset_y = []
-
-x1 = np.random.randint(1, 10, size=50)
-x2 = np.random.randint(1, 10, size=50)
-
-
-y = (x2*x2)
-
-dataset_x = np.column_stack((x1, x2))
-dataset_y = np.column_stack((y,))
+    def get_leaf(self, w, x):
+        elementwise_product = torch.mul(w, x.transpose(0,1))
+        max_index = torch.argmax(elementwise_product, dim=-1)
+        return [self.variables[i] for i in max_index]
 
 #########################
+    def get_nth_element(self, lst):
+        return [sublst[len(lst)] for n, sublst in enumerate(lst, start=1)]
 #########################
-sfl = SymbolicFunctionLearning()
+    def parse_math_expr_tree(self, expr_tree_list):
+        # Define a recursive function to parse the tree
+        def parse_node(node_index):
+            if node_index > len(expr_tree_list):
+                return ''
+            
+            # Check if this is a leaf node (i.e. a variable)
+            if 2*node_index >= len(expr_tree_list):
+                return expr_tree_list[node_index-1]
+            
+            # Otherwise, this is an interior node (i.e. an operator)
+            operator = expr_tree_list[node_index-1]
+            left_child_index = 2*node_index
+            right_child_index = 2*node_index + 1
+            
+            # Recursively parse the left and right children
+            left_expr = parse_node(left_child_index)
+            right_expr = parse_node(right_child_index)
+            
+            # Combine the left and right expressions with the operator
+            if operator == 'sin':
+                return f'sin({left_expr} + {right_expr})'
+            elif operator == 'cos':
+                return f'cos({left_expr} + {right_expr})'
+            elif operator == 'exp':
+                return f'e^({left_expr} + {right_expr})'
+            elif operator == '+':
+                return f'({left_expr} + {right_expr})'
+            elif operator == '-':
+                return f'({left_expr} - {right_expr})'
+            elif operator == '*':
+                return f'({left_expr} * {right_expr})'
+            elif operator == '/':
+                return f'({left_expr} / {right_expr})'
+            else:
+                return ''
+        
+        # Start parsing at the root node (index 1)
+        return parse_node(1)
+#########################
+    def expression_plotter(self, dataset_x, expression_y, expression_y_hat):
+        #expression_y = "sin(cos(x1+x1)+sin(x1+x1))"
+        # add the torch namespace to the expression string
+        expression_y = expression_y.replace('sin', 'torch.sin')
+        expression_y = expression_y.replace('cos', 'torch.cos')
+        expression_y = expression_y.replace('x1', 'dataset_x[:,0]')
 
-#i and k shows after what count of sfl learn iteration i, we use descrtized softmax  ,i comes from sfl.learn() and k comes from sfl.__init__()
-sfl.learn(dataset_x, dataset_y, 1, 0.1, 500, 100)
+        expression_y_hat = expression_y_hat.replace('sin', 'torch.sin')
+        expression_y_hat = expression_y_hat.replace('cos', 'torch.cos')
+        expression_y_hat = expression_y_hat.replace('x1', 'dataset_x[:,0]')
+
+        #exec(expression_y)
+
+        y = eval(expression_y)
+        y_hat = eval(expression_y_hat)
+
+        #print(y)
+        #y = torch.sin(torch.cos(dataset_x[:,0]+dataset_x[:,0])+torch.sin(dataset_x[:,0]+dataset_x[:,0]))
+        #y_hat = torch.cos(torch.cos(dataset_x[:,0]+dataset_x[:,0])+(dataset_x[:,0]*dataset_x[:,0]))
+
+        # Create scatter plot of X against y
+        plt.scatter(dataset_x[:,0], y)
+        plt.scatter(dataset_x[:,0], y_hat)
+
+        plt.show()
+
+#########################
+x1 = torch.FloatTensor(500).uniform_(1, 10)
+x2 = torch.FloatTensor(500).uniform_(1, 10)
+x3 = torch.FloatTensor(500).uniform_(1, 10)
+
+dataset_x = torch.stack((x1,), dim=1)
+dataset_y = torch.sin(torch.cos(x1+x1)+torch.sin(x1+x1))
+#########################
+#scaler = MinMaxScaler()
+#dataset_x_norm = scaler.fit_transform(dataset_x)
+#dataset_y_norm = scaler.fit_transform(dataset_y)
+#########################
+#dataset_x_norm = np.array(dataset_x_norm)
+#dataset_y_norm = np.array(dataset_y_norm)
+
+#dataset_x = torch.from_numpy(dataset_x_norm)
+#dataset_x = torch.tensor(dataset_x, dtype=torch.float)
+#dataset_y = torch.from_numpy(dataset_y_norm)
+
+rnn= BinaryTreeRNN()
+rnn.learn(dataset_x, dataset_y, num_layers = 3, training_steps_by_standard_softmax = 3000, training_steps_by_softmax_prime = 9000, lr=.1, lambda_L1 =.001)
