@@ -8,6 +8,8 @@ import torch.nn.functional as F
 import torch.optim as optim
 import torch.nn.utils as utils
 import math
+import matplotlib.pyplot as plt
+import pdb
 
 class BinaryTreeRNN(nn.Module):
     def __init__(self):
@@ -53,7 +55,7 @@ class BinaryTreeRNN(nn.Module):
     def learn(self, dataset_x, dataset_y, num_layers, training_steps_by_standard_softmax, training_steps_by_softmax_prime, lr, lambda_L1):
 
         # Check if the dimensions of the arrays are correct
-        if dataset_x.shape[0] == dataset_y.shape[0] and dataset_x.shape[1] > 1:
+        if dataset_x.shape[0] == dataset_y.shape[0] and dataset_x.shape[1] >= 1:
             print("datasets are okay.")
 
             self.num_variables = np.array(dataset_x).shape[1]
@@ -107,10 +109,12 @@ class BinaryTreeRNN(nn.Module):
 
 
                 if(self.step_counter%2 == 0):
+                    parsed_math_expr_tree = self.parse_math_expr_tree(self.get_nth_element(self.last_expression))
                     print("%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%")
                     print("%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%")
-                    print(" y = "+self.parse_math_expr_tree(self.get_nth_element(self.last_expression)))
+                    print("y_hat = "+parsed_math_expr_tree)
                     print("ERROR="+str(loss))
+                    self.expression_plotter(dataset_x, "sin(cos(x1+x1)+sin(x1+x1))",parsed_math_expr_tree)
 
                 # calculate L1 regularization term
                 L1_reg = torch.tensor(0., requires_grad=True)
@@ -291,12 +295,39 @@ class BinaryTreeRNN(nn.Module):
         # Start parsing at the root node (index 1)
         return parse_node(1)
 #########################
-x1 = torch.FloatTensor(50000).uniform_(1, 10)
-x2 = torch.FloatTensor(50000).uniform_(1, 10)
-x3 = torch.FloatTensor(50000).uniform_(1, 10)
+    def expression_plotter(self, dataset_x, expression_y, expression_y_hat):
+        #expression_y = "sin(cos(x1+x1)+sin(x1+x1))"
+        # add the torch namespace to the expression string
+        expression_y = expression_y.replace('sin', 'torch.sin')
+        expression_y = expression_y.replace('cos', 'torch.cos')
+        expression_y = expression_y.replace('x1', 'dataset_x[:,0]')
 
-dataset_x = torch.stack((x1, x2, x3), dim=1)
-dataset_y = torch.sin(x1+x2)
+        expression_y_hat = expression_y_hat.replace('sin', 'torch.sin')
+        expression_y_hat = expression_y_hat.replace('cos', 'torch.cos')
+        expression_y_hat = expression_y_hat.replace('x1', 'dataset_x[:,0]')
+
+        #exec(expression_y)
+
+        y = eval(expression_y)
+        y_hat = eval(expression_y_hat)
+
+        #print(y)
+        #y = torch.sin(torch.cos(dataset_x[:,0]+dataset_x[:,0])+torch.sin(dataset_x[:,0]+dataset_x[:,0]))
+        #y_hat = torch.cos(torch.cos(dataset_x[:,0]+dataset_x[:,0])+(dataset_x[:,0]*dataset_x[:,0]))
+
+        # Create scatter plot of X against y
+        plt.scatter(dataset_x[:,0], y)
+        plt.scatter(dataset_x[:,0], y_hat)
+
+        plt.show()
+
+#########################
+x1 = torch.FloatTensor(500).uniform_(1, 10)
+x2 = torch.FloatTensor(500).uniform_(1, 10)
+x3 = torch.FloatTensor(500).uniform_(1, 10)
+
+dataset_x = torch.stack((x1,), dim=1)
+dataset_y = torch.sin(torch.cos(x1+x1)+torch.sin(x1+x1))
 #########################
 #scaler = MinMaxScaler()
 #dataset_x_norm = scaler.fit_transform(dataset_x)
@@ -310,4 +341,4 @@ dataset_y = torch.sin(x1+x2)
 #dataset_y = torch.from_numpy(dataset_y_norm)
 
 rnn= BinaryTreeRNN()
-rnn.learn(dataset_x, dataset_y, num_layers = 2, training_steps_by_standard_softmax = 3000, training_steps_by_softmax_prime = 9000, lr=.1, lambda_L1 =.001)
+rnn.learn(dataset_x, dataset_y, num_layers = 3, training_steps_by_standard_softmax = 3000, training_steps_by_softmax_prime = 9000, lr=.1, lambda_L1 =.001)
