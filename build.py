@@ -1,4 +1,3 @@
-
 from sklearn.preprocessing import MinMaxScaler
 from numpy.typing import NDArray
 import numpy as np
@@ -326,7 +325,10 @@ x1 = torch.FloatTensor(500).uniform_(1, 10)
 x2 = torch.FloatTensor(500).uniform_(1, 10)
 x3 = torch.FloatTensor(500).uniform_(1, 10)
 
+#⚠ CAUTIONS ⚠ IF YOU WANT TO HAVE DATASET_X CONTAINING MORE THAN ONE FEATURE(X1), THEN MAKE THE LINE 116(plotting) AS COMMENTS  ⚠ CAUTIONS ⚠⚠ CAUTIONS ⚠⚠ CAUTIONS ⚠⚠ CAUTIONS ⚠
 dataset_x = torch.stack((x1,), dim=1)
+#⚠ CAUTIONS ⚠ IF YOU WANT TO HAVE DATASET_X CONTAINING MORE THAN ONE FEATURE(X1), THEN MAKE THE LINE 116(plotting) AS COMMENTS  ⚠ CAUTIONS ⚠⚠ CAUTIONS ⚠⚠ CAUTIONS ⚠⚠ CAUTIONS ⚠
+
 dataset_y = torch.sin(torch.cos(x1+x1)+torch.sin(x1+x1))
 #########################
 #scaler = MinMaxScaler()
