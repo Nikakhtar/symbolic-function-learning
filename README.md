@@ -1,10 +1,6 @@
-# symbolic-function-learning
-a new deep learning approach to SFL using NN with a discretized softmax-function and an Operator-function P(x[2,4,71..], operators[+,*,/, sin, cos...]), which applies to each node of expression tree and creates the the inputs to the NN.
-
-
-![download](https://github.com/Nikakhtar/symbolic-function-learning/assets/47872183/de26b145-fcd5-4871-bb6c-5b056e74222d)
 # Symbolic Function Learner with Neural Networks
-
+a new deep learning approach to SFL using NN with a discretized softmax-function and an Operator-function P(x[2,4,71..], operators[+,*,/, sin, cos...]), which applies to each node of expression tree and creates the the inputs to the NN.
+![download](https://github.com/Nikakhtar/symbolic-function-learning/assets/47872183/de26b145-fcd5-4871-bb6c-5b056e74222d)
 ## Overview
 This repository contains a neural network implementation for learning symbolic mathematical functions from data. The main architecture is based on a binary tree recurrent neural network (BinaryTreeRNN) which can represent and learn various mathematical expressions.
 
