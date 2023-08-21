@@ -21,8 +21,6 @@ class BinaryTreeRNN(nn.Module):
         self.training_steps_by_standard_softmax = None
 
         self.training_steps_by_softmax_prime = None
-        
-        self.total_training_steps = None
 
         # Initialize a list to store the variable names
         self.variables = None
@@ -30,7 +28,7 @@ class BinaryTreeRNN(nn.Module):
         self.num_variables = None
         
         # Initialize a list to store the mathematical operations that can be performed
-        self.operations = ['+', 'sin', '*']
+        self.operations = ['+', 'sin', 'cos', '*']
 
         # Get the length of the operations list
         self.operations_length = len(self.operations)
@@ -51,22 +49,13 @@ class BinaryTreeRNN(nn.Module):
         
         self.step_counter = None
         
-        self.test_expression = None
-        
-        self.best_parsed_math_expr_tree = None
-        
-        self.best_mean_abs_diff = 999999999.999
-        
 
  ######################### 
-    def learn(self, test_expression, dataset_x, dataset_y, num_layers, training_steps_by_standard_softmax, training_steps_by_softmax_prime, lr, lambda_L1):
+    def learn(self, dataset_x, dataset_y, num_layers, training_steps_by_standard_softmax, training_steps_by_softmax_prime, lr, lambda_L1):
 
         # Check if the dimensions of the arrays are correct
         if dataset_x.shape[0] == dataset_y.shape[0] and dataset_x.shape[1] >= 1:
-            print("%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%")
             print("datasets are okay.")
-            
-            self.test_expression = test_expression
 
             self.num_variables = np.array(dataset_x).shape[1]
 
@@ -78,7 +67,7 @@ class BinaryTreeRNN(nn.Module):
 
             self.training_steps_by_standard_softmax = training_steps_by_standard_softmax
             self.training_steps_by_softmax_prime = training_steps_by_softmax_prime
-            self.total_training_steps =  self.training_steps_by_standard_softmax + self.training_steps_by_softmax_prime
+            total_training_steps =  self.training_steps_by_standard_softmax + self.training_steps_by_softmax_prime
 
             # Initialize weights and biases for the first layer(Leaf)
             self.first_layer_weights = nn.Parameter(torch.randn(2**(num_layers-1), self.num_variables, dtype=torch.float32), requires_grad=True)
@@ -99,7 +88,7 @@ class BinaryTreeRNN(nn.Module):
 
             self.lambda_L1 = lambda_L1
 
-            for self.step_counter in range(self.total_training_steps):
+            for self.step_counter in range(total_training_steps):
 
                 optimizer.zero_grad()
                 loss = 0.0
@@ -116,7 +105,16 @@ class BinaryTreeRNN(nn.Module):
 
                 # define the loss function
                 loss = nn.functional.mse_loss(y_hat, dataset_y)
-               
+
+
+                if(self.step_counter%2 == 0):
+                    parsed_math_expr_tree = self.parse_math_expr_tree(self.get_nth_element(self.last_expression))
+                    print("%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%")
+                    print("%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%")
+                    print("y_hat = "+parsed_math_expr_tree)
+                    print("ERROR="+str(loss))
+                    self.expression_plotter(dataset_x, "sin(cos(x1+x1)+sin(x1+x1))",parsed_math_expr_tree)
+
                 # calculate L1 regularization term
                 L1_reg = torch.tensor(0., requires_grad=True)
                 for param in self.parameters():
@@ -134,16 +132,7 @@ class BinaryTreeRNN(nn.Module):
 
                 # update the parameters with gradient descent
                 optimizer.step()
-                
-                ###############################
-                ###############################
-                
-            
-                parsed_math_expr_tree = self.parse_math_expr_tree(self.get_nth_element(self.last_expression))
-            
-                self.expression_plotter(dataset_x, self.test_expression, parsed_math_expr_tree)
-            
-            return self.best_mean_abs_diff
+
 
         else:
               print("datasets do not match. please try again.")
@@ -306,10 +295,6 @@ class BinaryTreeRNN(nn.Module):
         return parse_node(1)
 #########################
     def expression_plotter(self, dataset_x, expression_y, expression_y_hat):
-        
-        #just create a copy of the argument to have a unmodified version
-        expression_y_hat_copy = expression_y_hat
-        
         #expression_y = "sin(cos(x1+x1)+sin(x1+x1))"
         # add the torch namespace to the expression string
         expression_y = expression_y.replace('sin', 'torch.sin')
@@ -324,37 +309,16 @@ class BinaryTreeRNN(nn.Module):
 
         y = eval(expression_y)
         y_hat = eval(expression_y_hat)
-        
-        abs_diff = torch.abs(y - y_hat)
-        mean_abs_diff = torch.mean(abs_diff)
-        
-        if mean_abs_diff < self.best_mean_abs_diff:
-            self.best_mean_abs_diff = mean_abs_diff
-            self.best_parsed_math_expr_tree = expression_y_hat_copy
-            
-        if self.step_counter == self.total_training_steps - 1:
-            
-            print("y = "+self.test_expression)
-            print("best y_hat = "+self.best_parsed_math_expr_tree)
-            print("Real ERROR="+str(self.best_mean_abs_diff))
-            
-            self.best_parsed_math_expr_tree = self.best_parsed_math_expr_tree.replace('sin', 'torch.sin')
-            self.best_parsed_math_expr_tree = self.best_parsed_math_expr_tree.replace('cos', 'torch.cos')
-            self.best_parsed_math_expr_tree = self.best_parsed_math_expr_tree.replace('x1', 'dataset_x[:,0]')
-            
-            y_hat = eval(self.best_parsed_math_expr_tree)
-            
-            # Create scatter plot of X against y
-            plt.scatter(dataset_x[:,0], y)
-            plt.scatter(dataset_x[:,0], y_hat)
 
-            plt.show()
-            print("%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%")
-
-                   
         #print(y)
         #y = torch.sin(torch.cos(dataset_x[:,0]+dataset_x[:,0])+torch.sin(dataset_x[:,0]+dataset_x[:,0]))
         #y_hat = torch.cos(torch.cos(dataset_x[:,0]+dataset_x[:,0])+(dataset_x[:,0]*dataset_x[:,0]))
+
+        # Create scatter plot of X against y
+        plt.scatter(dataset_x[:,0], y)
+        plt.scatter(dataset_x[:,0], y_hat)
+
+        plt.show()
 
 #########################
 x1 = torch.FloatTensor(500).uniform_(1, 10)
@@ -365,103 +329,18 @@ x3 = torch.FloatTensor(500).uniform_(1, 10)
 dataset_x = torch.stack((x1,), dim=1)
 #⚠ CAUTIONS ⚠ IF YOU WANT TO HAVE DATASET_X CONTAINING MORE THAN ONE FEATURE(X1), THEN MAKE THE LINE 116(plotting) AS COMMENTS  ⚠ CAUTIONS ⚠⚠ CAUTIONS ⚠⚠ CAUTIONS ⚠⚠ CAUTIONS ⚠
 
-# create a 10x10 matrix of zeros
-real_errors = torch.zeros(10, 10)
+dataset_y = torch.sin(torch.cos(x1+x1)+torch.sin(x1+x1))
 #########################
-# Loop 1
-dataset_y = x1+x1
-test_expression = "x1+x1"
+#scaler = MinMaxScaler()
+#dataset_x_norm = scaler.fit_transform(dataset_x)
+#dataset_y_norm = scaler.fit_transform(dataset_y)
+#########################
+#dataset_x_norm = np.array(dataset_x_norm)
+#dataset_y_norm = np.array(dataset_y_norm)
 
-for i in range(10):
-    rnn= BinaryTreeRNN()
-    real_errors[0][i]=rnn.learn(test_expression, dataset_x, dataset_y, num_layers = 2, training_steps_by_standard_softmax = 3000, training_steps_by_softmax_prime = 9000, lr=.1, lambda_L1 =.001)
-    #########################
-    
-# Loop 2
-dataset_y = x1*x1
-test_expression = "x1*x1"
+#dataset_x = torch.from_numpy(dataset_x_norm)
+#dataset_x = torch.tensor(dataset_x, dtype=torch.float)
+#dataset_y = torch.from_numpy(dataset_y_norm)
 
-for i in range(10):
-    rnn= BinaryTreeRNN()
-    real_errors[1][i]=rnn.learn(test_expression, dataset_x, dataset_y, num_layers = 2, training_steps_by_standard_softmax = 3000, training_steps_by_softmax_prime = 9000, lr=.1, lambda_L1 =.001)
-    #########################
-    
-# Loop 3
-dataset_y = torch.sin(x1+x1)
-test_expression = "sin(x1+x1)"
-
-for i in range(10):
-    rnn= BinaryTreeRNN()
-    real_errors[2][i]=rnn.learn(test_expression, dataset_x, dataset_y, num_layers = 2, training_steps_by_standard_softmax = 3000, training_steps_by_softmax_prime = 9000, lr=.1, lambda_L1 =.001)
-    #########################
-    
-# Loop 4
-dataset_y = torch.sin(x1+x1)+torch.sin(x1+x1)
-test_expression = "sin(x1+x1)+sin(x1+x1)"
-
-for i in range(10):
-    rnn= BinaryTreeRNN()
-    real_errors[3][i]=rnn.learn(test_expression, dataset_x, dataset_y, num_layers = 3, training_steps_by_standard_softmax = 3000, training_steps_by_softmax_prime = 9000, lr=.1, lambda_L1 =.001)
-    #########################
-    
-# Loop 5
-dataset_y = (x1+x1)*(x1+x1)
-test_expression = "(x1+x1)*(x1+x1)"
-
-for i in range(10):
-    rnn= BinaryTreeRNN()
-    real_errors[4][i]=rnn.learn(test_expression, dataset_x, dataset_y, num_layers = 3, training_steps_by_standard_softmax = 3000, training_steps_by_softmax_prime = 9000, lr=.1, lambda_L1 =.001)
-    #########################
-    
-# Loop 6
-dataset_y = torch.sin((x1*x1)+torch.sin(x1+x1))
-test_expression = "sin((x1*x1)+sin(x1+x1))"
-
-for i in range(10):
-    rnn= BinaryTreeRNN()
-    real_errors[5][i]=rnn.learn(test_expression, dataset_x, dataset_y, num_layers = 3, training_steps_by_standard_softmax = 3000, training_steps_by_softmax_prime = 9000, lr=.1, lambda_L1 =.001)
-    #########################
-    
-# Loop 7
-dataset_y = ((x1+x1)*torch.sin(x1+x1))
-test_expression = "((x1+x1)*sin(x1+x1))"
-
-for i in range(10):
-    rnn= BinaryTreeRNN()
-    real_errors[6][i]=rnn.learn(test_expression, dataset_x, dataset_y, num_layers = 3, training_steps_by_standard_softmax = 3000, training_steps_by_softmax_prime = 9000, lr=.1, lambda_L1 =.001)
-    #########################
-    
-# Loop 8
-dataset_y = ((x1*x1)+(x1*x1))
-test_expression = "((x1*x1)+(x1*x1))"
-
-for i in range(10):
-    rnn= BinaryTreeRNN()
-    real_errors[7][i]=rnn.learn(test_expression, dataset_x, dataset_y, num_layers = 3, training_steps_by_standard_softmax = 3000, training_steps_by_softmax_prime = 9000, lr=.1, lambda_L1 =.001)
-    #########################
-    
-# Loop 9
-dataset_y = (torch.sin(x1+x1)*torch.sin(x1+x1))
-test_expression = "(sin(x1+x1)*sin(x1+x1))"
-
-for i in range(10):
-    rnn= BinaryTreeRNN()
-    real_errors[8][i]=rnn.learn(test_expression, dataset_x, dataset_y, num_layers = 3, training_steps_by_standard_softmax = 3000, training_steps_by_softmax_prime = 9000, lr=.1, lambda_L1 =.001)
-    #########################
-    
-# Loop 10
-dataset_y = ((x1*x1)*(x1+x1))
-test_expression = "((x1*x1)*(x1+x1))"
-
-for i in range(10):
-    rnn= BinaryTreeRNN()
-    real_errors[9][i]=rnn.learn(test_expression, dataset_x, dataset_y, num_layers = 3, training_steps_by_standard_softmax = 3000, training_steps_by_softmax_prime = 9000, lr=.1, lambda_L1 =.001)
-    ###########################
-print("............................................................................................")
-print("............................................................................................")
-print("real_errors matrix =")    
-print(real_errors)
-print("..........................")
-mean_real_errors = torch.mean(real_errors)
-print("mean real_errors = ")
-print(mean_real_errors)
+rnn= BinaryTreeRNN()
+rnn.learn(dataset_x, dataset_y, num_layers = 3, training_steps_by_standard_softmax = 3000, training_steps_by_softmax_prime = 9000, lr=.1, lambda_L1 =.001
