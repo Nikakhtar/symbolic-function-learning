@@ -1,0 +1,373 @@
+
+from sklearn.preprocessing import MinMaxScaler
+from numpy.typing import NDArray
+import numpy as np
+import torch
+import torch.nn as nn
+import torch.nn.functional as F
+import torch.optim as optim
+import torch.nn.utils as utils
+import math
+import pdb
+
+class BinaryTreeRNN(nn.Module):
+    def __init__(self):
+        super(BinaryTreeRNN, self).__init__()
+
+        self.num_layers = None
+
+        self.last_expression = None
+
+        self.training_steps_by_standard_softmax = None
+
+        self.training_steps_by_softmax_prime = None
+
+        self.variables = None
+
+        self.num_variables = None
+        
+        self.operations = ['+', 'sin', '*']
+
+        self.operations_length = len(self.operations)
+
+        self.first_layer_weights = None
+        self.first_layer_biases = None
+        
+        #self.weights = nn.ParameterList([nn.Parameter(torch.randn(2**(level-1), dtype=torch.float32), requires_grad=True) for level in range(1, self.num_layers)])
+        #self.biases = nn.ParameterList([nn.Parameter(torch.randn(2**(level-1), dtype=torch.float32), requires_grad=True) for level in range(1, self.num_layers)])  
+        self.second_layer_weights = None
+        self.second_layer_biases = None
+        self.second_layer_omegas = None
+        ###
+        self.third_layer_weights = None
+        self.third_layer_biases = None
+        self.third_layer_omegas = None
+
+        self.lambda_L1 = None
+
+        self.hidden_values = None
+        
+        self.step_counter = None
+        
+
+ ######################### 
+    #def learn(self, dataset_x, dataset_y, num_layers, training_steps_by_standard_softmax, training_steps_by_softmax_prime, lr, lambda_L1):
+    def learn(self, dataset_x, dataset_y, training_steps_by_standard_softmax, lr, lambda_L1):
+        
+        #if dataset_x.shape[0] == dataset_y.shape[0] and dataset_x.shape[1] > 1:
+        if dataset_x.shape[0] == dataset_y.shape[0] and dataset_x.shape[1] == 2:
+            
+            print("datasets are okay.")
+
+            #self.num_variables = np.array(dataset_x).shape[1]
+            self.num_variables = 2
+
+            #self.variables = ['x' + str(i+1) for i in range(self.num_variables)]
+            self.variables = ['x1', 'x2']
+            
+            #self.num_layers = num_layers
+            self.num_layers = 3
+
+            self.training_steps_by_standard_softmax = training_steps_by_standard_softmax
+            #self.training_steps_by_softmax_prime = training_steps_by_softmax_prime
+            #total_training_steps =  self.training_steps_by_standard_softmax + self.training_steps_by_softmax_prime
+            total_training_steps =  self.training_steps_by_standard_softmax
+            #############
+            #self.first_layer_weights = nn.Parameter(torch.randn(2**(num_layers-1), self.num_variables, dtype=torch.float32), requires_grad=True)
+            self.first_layer_weights = nn.Parameter(torch.randn(4, 2, dtype=torch.float32), requires_grad=True)
+
+            #self.first_layer_biases = nn.Parameter(torch.randn(2**(num_layers-1), dtype=torch.float32), requires_grad=True)
+            self.first_layer_biases = nn.Parameter(torch.randn(4, dtype=torch.float32), requires_grad=True)
+            
+            #self.weights = nn.ParameterList([nn.Parameter(torch.randn(2**(level-1), dtype=torch.float32), requires_grad=True) for level in range(1, self.num_layers)])
+            self.second_layer_weights = nn.Parameter(torch.randn(2, dtype=torch.float32), requires_grad=True)
+            self.third_layer_weights = nn.Parameter(torch.randn(1, dtype=torch.float32), requires_grad=True)
+            
+            #self.biases = nn.ParameterList([nn.Parameter(torch.randn(2**(level-1), dtype=torch.float32), requires_grad=True) for level in range(1, self.num_layers)])
+            self.second_layer_biases = nn.Parameter(torch.randn(2, dtype=torch.float32), requires_grad=True)
+            self.third_layer_biases = nn.Parameter(torch.randn(1, dtype=torch.float32), requires_grad=True)
+
+            #self.omegas = nn.ParameterList([nn.Parameter(torch.randn(2**(level-1), self.operations_length, dtype=torch.float32), requires_grad=True) for level in range(1, self.num_layers)])
+            self.second_layer_omegas = nn.Parameter(torch.randn(2, 3, dtype=torch.float32), requires_grad=True)
+            self.third_layer_omegas = nn.Parameter(torch.randn(1, 3, dtype=torch.float32), requires_grad=True)
+
+            # set up the optimizer
+            optimizer = optim.SGD(self.parameters(), lr=lr)   
+
+            self.lambda_L1 = lambda_L1
+
+            for self.step_counter in range(total_training_steps):
+
+                optimizer.zero_grad()
+                loss = 0.0
+                
+                #tensor_shape = (2**self.num_layers - 1, dataset_x.shape[0])
+                tensor_shape = (7, dataset_x.shape[0])
+                self.hidden_values = torch.empty(*tensor_shape, dtype=torch.float)
+                self.last_expression = [None] * (7)
+
+                #y_hat = self.forward(1, dataset_x)
+                y_hat = self.forward(dataset_x)
+
+                loss = nn.functional.mse_loss(y_hat, dataset_y)
+
+
+                if(self.step_counter%2 == 0):
+                    print("%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%")
+                    print("%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%")
+                    print(" y = "+self.parse_math_expr_tree(self.get_nth_element(self.last_expression)))
+                    print("ERROR="+str(loss))
+
+                # calculate L1 regularization term
+                L1_reg = torch.tensor(0., requires_grad=True)
+                for param in self.parameters():
+                    L1_reg = L1_reg + torch.norm(param, 1)
+                L1_loss = self.lambda_L1 * L1_reg
+                loss = loss + L1_loss
+                
+                
+                loss.backward(retain_graph=True) # backward pass
+
+                # clip gradients to avoid exploding gradients
+                # set the maximum norm to 1.0
+                max_norm = 1.0
+                utils.clip_grad_norm_(self.parameters(), max_norm)
+
+                # update the parameters with gradient descent
+                optimizer.step()
+
+
+        else:
+              print("datasets do not match. please try again.")
+
+#########################
+    def forward(self, dataset_x):
+
+        #h(4)
+
+        f_l_w = self.first_layer_weights[0]
+        f_l_b = self.first_layer_biases[0]
+        d_x_t = dataset_x.transpose(0, 1)
+        h_v = torch.matmul(f_l_w, d_x_t) + f_l_b
+
+        self.hidden_values[3] = h_v.clone()
+                  
+        self.last_expression[3] = self.get_leaf(f_l_w, d_x_t)
+        ########
+        #h(5)
+
+        f_l_w = self.first_layer_weights[1]
+        f_l_b = self.first_layer_biases[1]
+        d_x_t = dataset_x.transpose(0, 1)
+        h_v = torch.matmul(f_l_w, d_x_t) + f_l_b
+
+        self.hidden_values[4] = h_v.clone()
+                  
+        self.last_expression[4] = self.get_leaf(f_l_w, d_x_t)
+        ########
+        #h(6)
+
+        f_l_w = self.first_layer_weights[2]
+        f_l_b = self.first_layer_biases[2]
+        d_x_t = dataset_x.transpose(0, 1)
+        h_v = torch.matmul(f_l_w, d_x_t) + f_l_b
+
+        self.hidden_values[5] = h_v.clone()
+                  
+        self.last_expression[5] = self.get_leaf(f_l_w, d_x_t)
+        ########
+        #h(7)
+
+        f_l_w = self.first_layer_weights[3]
+        f_l_b = self.first_layer_biases[3]
+        d_x_t = dataset_x.transpose(0, 1)
+        h_v = torch.matmul(f_l_w, d_x_t) + f_l_b
+
+        self.hidden_values[6] = h_v.clone()
+                  
+        self.last_expression[6] = self.get_leaf(f_l_w, d_x_t)
+                  ############
+                  ############
+                  ############
+        #h(2)
+
+        weight = self.second_layer_weights[0]
+        bias = self.second_layer_biases[0]
+
+        left_output = self.hidden_values[3]
+        right_output = self.hidden_values[4]
+            
+        op_p = self.operator_p(left_output, right_output)
+
+        omega = F.softmax(self.second_layer_omegas[0], dim=0)
+
+        hidden_value = weight * torch.matmul(omega, op_p) + bias
+
+        self.hidden_values[1] = hidden_value.clone()
+
+        self.last_expression[1] = self.get_operation(omega, op_p)
+        ###########
+        #h(3)
+
+        weight = self.second_layer_weights[1]
+        bias = self.second_layer_biases[1]
+
+        left_output = self.hidden_values[5]
+        right_output = self.hidden_values[6]
+            
+        op_p = self.operator_p(left_output, right_output)
+
+        omega = F.softmax(self.second_layer_omegas[1], dim=0)
+
+        hidden_value = weight * torch.matmul(omega, op_p) + bias
+
+        self.hidden_values[2] = hidden_value.clone()
+
+        self.last_expression[2] = self.get_operation(omega, op_p)
+        ###########
+        #h(1)
+
+        weight = self.third_layer_weights[0]
+        bias = self.third_layer_biases[0]
+
+        left_output = self.hidden_values[1]
+        right_output = self.hidden_values[2]
+            
+        op_p = self.operator_p(left_output, right_output)
+
+        omega = F.softmax(self.second_layer_omegas[0], dim=0)
+
+        hidden_value = weight * torch.matmul(omega, op_p) + bias
+
+        self.hidden_values[0] = hidden_value.clone()
+
+        self.last_expression[0] = self.get_operation(omega, op_p)
+        #########
+        
+        return self.hidden_values[1]
+#########################
+
+    def operator_p(self, left_child_h, right_child_h):
+        # initialize an empty vector to hold the results
+        p = torch.zeros((len(self.operations), len(left_child_h)), requires_grad=True)
+        # loop over each operator in self.operations and apply it to left_child_h and right_child_h
+        for i, op in enumerate(self.operations):
+            
+            p_copy = p.clone()
+
+            if op == '+':
+                p_copy[i] = torch.add(left_child_h, right_child_h)
+            elif op == '*':
+                f = torch.mul(left_child_h.clone(), right_child_h.clone())
+                p_copy[i] = f.clone()
+            elif op == 'sin':
+                add = torch.add(left_child_h, right_child_h)
+                p_copy[i] = torch.sin(add)
+
+            p = p_copy
+
+        # return the resulting vector
+        return p
+
+######################
+    def softmax_prime(self, omegas):
+        # Find the index of the maximum value in self.omegas[layer][j]
+        max_idx = torch.argmax(omegas)
+        
+        # Create a tensor of zeros with the same shape as self.omegas[layer][j]
+        zeros = torch.zeros_like(omegas)
+        
+        # Set the element at the maximum index to 1
+        zeros[max_idx] = 1
+        
+        # Return the tensor
+        return zeros
+#########################    
+    def layer_position(self, i):
+        i_backup = i
+        layer = 0
+        while i > 0:
+            i //= 2
+            layer += 1
+        layer -= 1  # Adjust for 0-based indexing
+
+        leftmost_index = 2**layer - 1
+        index_in_layer = i_backup - leftmost_index - 1
+
+        return layer, index_in_layer
+#########################
+    def get_operation(self, s, v):
+        elementwise_product = torch.mul(s, v.transpose(0,1))
+        max_index = torch.argmax(elementwise_product, dim=-1)
+        return [self.operations[i] for i in max_index]
+
+#########################
+    def get_leaf(self, w, x):
+        elementwise_product = torch.mul(w, x.transpose(0,1))
+        max_index = torch.argmax(elementwise_product, dim=-1)
+        return [self.variables[i] for i in max_index]
+
+#########################
+    def get_nth_element(self, lst):
+        return [sublst[len(lst)] for n, sublst in enumerate(lst, start=1)]
+#########################
+    def parse_math_expr_tree(self, expr_tree_list):
+        # Define a recursive function to parse the tree
+        def parse_node(node_index):
+            if node_index > len(expr_tree_list):
+                return ''
+            
+            # Check if this is a leaf node (i.e. a variable)
+            if 2*node_index >= len(expr_tree_list):
+                return expr_tree_list[node_index-1]
+            
+            # Otherwise, this is an interior node (i.e. an operator)
+            operator = expr_tree_list[node_index-1]
+            left_child_index = 2*node_index
+            right_child_index = 2*node_index + 1
+            
+            # Recursively parse the left and right children
+            left_expr = parse_node(left_child_index)
+            right_expr = parse_node(right_child_index)
+            
+            # Combine the left and right expressions with the operator
+            if operator == 'sin':
+                return f'sin({left_expr} + {right_expr})'
+            elif operator == 'cos':
+                return f'cos({left_expr} + {right_expr})'
+            elif operator == 'exp':
+                return f'e^({left_expr} + {right_expr})'
+            elif operator == '+':
+                return f'({left_expr} + {right_expr})'
+            elif operator == '-':
+                return f'({left_expr} - {right_expr})'
+            elif operator == '*':
+                return f'({left_expr} * {right_expr})'
+            elif operator == '/':
+                return f'({left_expr} / {right_expr})'
+            else:
+                return ''
+        
+        # Start parsing at the root node (index 1)
+        return parse_node(1)
+#########################
+x1 = torch.FloatTensor(50000).uniform_(1, 10)
+x2 = torch.FloatTensor(50000).uniform_(1, 10)
+x3 = torch.FloatTensor(50000).uniform_(1, 10)
+
+dataset_x = torch.stack((x1, x2), dim=1)
+dataset_y = ((x2 * x1) + torch.sin(x2 + x1))
+#########################
+#scaler = MinMaxScaler()
+#dataset_x_norm = scaler.fit_transform(dataset_x)
+#dataset_y_norm = scaler.fit_transform(dataset_y)
+#########################
+#dataset_x_norm = np.array(dataset_x_norm)
+#dataset_y_norm = np.array(dataset_y_norm)
+
+#dataset_x = torch.from_numpy(dataset_x_norm)
+#dataset_x = torch.tensor(dataset_x, dtype=torch.float)
+#dataset_y = torch.from_numpy(dataset_y_norm)
+
+rnn= BinaryTreeRNN()
+rnn.learn(dataset_x, dataset_y, training_steps_by_standard_softmax = 3000, lr=.1, lambda_L1 =.001
